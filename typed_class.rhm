@@ -7,7 +7,8 @@ import:
 type ClassT
 | classT(super_name :: Symbol,
          fields :: Listof(Symbol * Type),
-         methods :: Listof(Symbol * MethodT))
+         methods :: Listof(Symbol * MethodT),
+         p_methods :: Listof(Symbol * MethodT))
 
 type MethodT
 | methodT(arg_type :: Type,
@@ -27,7 +28,7 @@ fun get_all_field_types(class_name, t_classes):
   if class_name == #'Object
   | []
   | match find(t_classes, class_name)
-    | classT(super_name, fields, methods):
+    | classT(super_name, fields, methods, p_methods):
         append(get_all_field_types(super_name, t_classes),
                map(snd, fields))
 
@@ -59,7 +60,7 @@ fun is_subclass(name1, name2, t_classes):
   | name1 == #'Object: #false
   | ~else:
       match find(t_classes, name1)
-      | classT(super_name, fields, methods):
+      | classT(super_name, fields, methods, p_methods):
           is_subclass(super_name, name2, t_classes)
 
 fun is_subtype(t1, t2, t_classes):
@@ -72,8 +73,8 @@ fun is_subtype(t1, t2, t_classes):
   | ~else: t1 == t2
 
 module test:
-  def a_t_class = values(#'A, classT(#'Object, [], []))
-  def b_t_class = values(#'B, classT(#'A, [], []))
+  def a_t_class = values(#'A, classT(#'Object, [], [], []))
+  def b_t_class = values(#'B, classT(#'A, [], [], []))
 
   check: is_subclass(#'Object, #'Object, [])
          ~is #true
@@ -222,10 +223,10 @@ fun typecheck_class(class_name :: Symbol,
                     t_class :: ClassT,
                     t_classes :: Listof(Symbol * ClassT)):
   match t_class
-  | classT(super_name, fields, methods):
+  | classT(super_name, fields, methods, p_methods):
       map(fun (m):
             typecheck_method(snd(m), objT(class_name), t_classes),
-          methods)
+          append(methods, p_methods))
 
 fun typecheck(a :: ExpI,
               t_classes :: Listof(Symbol * ClassT)) :: Type:
@@ -248,7 +249,8 @@ module test:
                    values(#'addDist,
                           methodT(objT(#'Posn), intT(),
                                   plusI(sendI(thisI(), #'mdist, intI(0)),
-                                        sendI(argI(), #'mdist, intI(0)))))]))
+                                        sendI(argI(), #'mdist, intI(0)))))],
+                  []))
 
   def posn3D_t_class:
     values(#'Posn3D,
@@ -257,12 +259,14 @@ module test:
                   [values(#'mdist,
                           methodT(intT(), intT(),
                                   plusI(getI(thisI(), #'z),
-                                        superI(#'mdist, argI()))))]))
+                                        superI(#'mdist, argI()))))],
+                  []))
 
   def square_t_class :
     values(#'Square,
            classT(#'Object,
                   [values(#'topleft, objT(#'Posn))],
+                  [],
                   []))
 
   fun typecheck_posn(a):
@@ -333,7 +337,8 @@ module test:
                                   [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), intT(),
-                                                  intI(10)))]))])
+                                                  intI(10)))],
+                                  []))])
          ~is intT()
   check: typecheck(intI(10),
                    [posn_t_class,
@@ -342,7 +347,8 @@ module test:
                                   [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), objT(#'Object),
-                                                  newI(#'Object, [])))]))])
+                                                  newI(#'Object, [])))],
+                                  []))])
          ~is intT()
   check: typecheck(intI(10),
                    [posn_t_class,
@@ -351,7 +357,8 @@ module test:
                                   [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), objT(#'Object),
-                                                  intI(10)))]))])
+                                                  intI(10)))],
+                                  []))])
          ~raises "no type"
   // End of overriding examples (covariance and contravariance)
   check: typecheck_method(methodT(intT(), objT(#'Object), intI(0)), objT(#'Object), [])
@@ -364,7 +371,8 @@ module test:
                                   [values(#'m,
                                           methodT(intT(), intT(),
                                                   // No such method in superclass:
-                                                  superI(#'m, intI(0))))]))])
+                                                  superI(#'m, intI(0))))],
+                                  []))])
          ~raises "not found"
 
 // ----------------------------------------
@@ -372,7 +380,7 @@ module test:
 def strip_types :: ClassT -> ClassI:
   fun (t_class):
     match t_class
-    | classT(super_name, fields, methods):
+    | classT(super_name, fields, methods, p_methods):
        classI(super_name,
               map(fst, fields),
               map(fun (m):
@@ -380,7 +388,14 @@ def strip_types :: ClassT -> ClassI:
                            match snd(m)
                            | methodT(arg_type, result_type, body_exp):
                                body_exp),
-                  methods))
+                  methods),
+              map(fun (m):
+                    values(fst(m),
+                           match snd(m)
+                           | methodT(arg_type, result_type, body_exp):
+                               body_exp),
+                  p_methods)
+              )
 
 def interp_t :: (ExpI, Listof(Symbol * ClassT)) -> Value:
   fun (a, t_classes):

@@ -12,6 +12,8 @@ fun parse_t_class(s :: Syntax) :: (Symbol * ClassT):
   match s
   | 'class $name($field, ...):
        extends $parent_name
+       private $p_method
+       ...
        $method
        ...':
       values(syntax_to_symbol(name),
@@ -19,7 +21,9 @@ fun parse_t_class(s :: Syntax) :: (Symbol * ClassT):
                     map(parse_t_field,
                         syntax_to_list('[$field, ...]')),
                     map(parse_t_method,
-                        syntax_to_list('[$method, ...]'))))
+                        syntax_to_list('[$method, ...]')),
+                    map(parse_t_method,
+                        syntax_to_list('[$p_method, ...]'))))
   | ~else: error(#'parse_class, "invalid input: " +& s)
 
 fun parse_t_field(s :: Syntax) :: (Symbol * Type):
@@ -31,6 +35,11 @@ fun parse_t_field(s :: Syntax) :: (Symbol * Type):
 
 fun parse_t_method(s :: Syntax) :: (Symbol * MethodT):
   match s
+  |'private method $name(arg :: $arg_ty) :: $res_ty: $body':
+     values(syntax_to_symbol(name),
+            methodT(parse_type(arg_ty),
+                    parse_type(res_ty),
+                    parse(body)))                                                       
   |'method $name(arg :: $arg_ty) :: $res_ty: $body':
      values(syntax_to_symbol(name),
             methodT(parse_type(arg_ty),
@@ -68,6 +77,28 @@ module test:
   check: parse_t_class('class Posn3D(x :: Int,
                                      y :: Int):
                           extends Posn
+                          private method jk(arg :: Int) :: Int:
+                            arg
+                          private method jk2(arg :: Int) :: Int:
+                            arg
+                          method m1(arg :: Int) :: Int:
+                            arg
+                          method m2(arg :: Int) :: Object:
+                            this')
+         ~is values(#'Posn3D,
+                    classT(#'Posn,
+                           [values(#'x, intT()), values(#'y, intT())],
+                           [
+                             values(#'m1, methodT(intT(), intT(), argI())),
+                             values(#'m2, methodT(intT(), objT(#'Object), thisI()))
+                           ],
+                           [
+                             values(#'jk, methodT(intT(), intT(), argI())),
+                             values(#'jk2, methodT(intT(), intT(), argI()))
+                           ]))
+  check: parse_t_class('class Posn3D(x :: Int,
+                                     y :: Int):
+                          extends Posn
                           method m1(arg :: Int) :: Int:
                             arg
                           method m2(arg :: Int) :: Object:
@@ -77,7 +108,8 @@ module test:
                            [values(#'x, intT()),
                             values(#'y, intT())],
                            [values(#'m1, methodT(intT(), intT(), argI())),
-                            values(#'m2, methodT(intT(), objT(#'Object), thisI()))]))
+                            values(#'m2, methodT(intT(), objT(#'Object), thisI()))],
+                           []))
   check: parse_t_class('class')
          ~raises "invalid input"
 

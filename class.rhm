@@ -27,7 +27,8 @@ type Exp
 
 type Class
 | classC(field_names :: Listof(Symbol),
-         methods :: Listof(Symbol * Exp))
+         methods :: Listof(Symbol * Exp),
+         p_methods :: Listof(Symbol * Exp))
 
 type Value
 | intV(n :: Int)
@@ -79,7 +80,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         match recur(obj_exp)
         | objV(class_name, fields):
             match find(classes, class_name)
-            | classC(field_names, methods):
+            | classC(field_names, methods, p_methods):
                 find(map2(fun (n, v): values(n, v), field_names, fields),
                      field_name)
         | ~else:
@@ -95,7 +96,11 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
     | ssendE(obj_exp, class_name, method_name, arg_exp):
         def obj = recur(obj_exp)
         def arg_val = recur(arg_exp)
-        call_method(class_name, method_name, classes, obj, arg_val)
+        call_all_method(class_name,
+                        method_name,
+                        classes,
+                        obj,
+                        arg_val) 
     | castE(sym, exp):
         def res_exp = recur(exp)
         match res_exp
@@ -113,9 +118,19 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         | recur(arm1)
         | recur(arm2)
 
+fun call_all_method(class_name, method_name, classes, obj, arg_val):
+  match find(classes, class_name)
+  | classC(field_names, methods, p_methods):
+      try:
+        let body_exp = find(p_methods, method_name):
+          interp(body_exp, classes, obj, arg_val)
+        ~catch:
+          let body_exp = find(methods, method_name):
+            interp(body_exp, classes, obj, arg_val)        
+
 fun call_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(field_names, methods):              
+  | classC(field_names, methods, p_methods):              
       let body_exp = find(methods, method_name):
         interp(body_exp, classes, obj, arg_val)
                       
@@ -149,8 +164,11 @@ module test:
                       multE(argE(), getE(thisE(), #'y))),
                values(#'factory12,
                       newE(#'Posn, [intE(1), intE(2)]))
-             ])
-      )
+             ],
+             [
+               values(#'addDists,
+                      newE(#'Posn, [intE(1), intE(2)]))
+             ]))
 
   def posn3D_class:
     values(
@@ -162,7 +180,7 @@ module test:
                             ssendE(thisE(), #'Posn, #'mdist, argE()))),
                values(#'addDist,
                       ssendE(thisE(), #'Posn, #'addDist, argE()))
-             ])
+             ], [])
     )
 
   def posn27 = newE(#'Posn, [intE(2), intE(7)])
@@ -173,6 +191,8 @@ module test:
 // ----------------------------------------
 
 module test:
+  check: interp_posn(ssendE(posn27, #'Posn, #'addDists, intE(0)))
+         ~is objV(#'Posn, [intV(1), intV(2)])
   check: interp_posn(castE(#'Posn, newE(#'Posn3D, [intE(2), intE(7), intE(8)])))
          ~raises "invalid typecast"
   check: interp_posn(castE(#'Posn, newE(#'Posn, [intE(2), intE(7)])))

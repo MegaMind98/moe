@@ -32,7 +32,8 @@ type ExpI
 type ClassI
 | classI(super_name :: Symbol,
          field_names :: Listof(Symbol),
-         methods :: Listof(Symbol * ExpI))
+         methods :: Listof(Symbol * ExpI),
+         p_methods :: Listof(Symbol * ExpI))
 
 // ----------------------------------------
 
@@ -89,12 +90,16 @@ module test:
 
 fun class_i_to_c_not_flat(c :: ClassI) :: Class:
   match c
-  | classI(super_name, field_names, methods):
+  | classI(super_name, field_names, methods, p_methods):
       classC(field_names,
              map(fun (m):
                    values(fst(m),
                           exp_i_to_c(snd(m), super_name)),
-                 methods))
+                 methods),
+             map(fun (m):
+                   values(fst(m),
+                          exp_i_to_c(snd(m), super_name)),
+                 p_methods))
 module test:
   def posn3d_mdist_i_method:
     values(#'mdist,
@@ -109,11 +114,13 @@ module test:
     values(#'Posn3D,
            classI(#'Posn,
                   [#'z],
-                  [posn3d_mdist_i_method]))
+                  [posn3d_mdist_i_method],
+                  []))
   def posn3d_c_class_not_flat:
     values(#'Posn3D,
            classC([#'z],
-                  [posn3d_mdist_c_method]))
+                  [posn3d_mdist_c_method],
+                  []))
 
   check: class_i_to_c_not_flat(snd(posn3d_i_class))
          ~is snd(posn3d_c_class_not_flat)
@@ -124,19 +131,20 @@ fun flatten_class(name :: Symbol,
                   classes_not_flat :: Listof(Symbol * Class),
                   i_classes :: Listof(Symbol * ClassI)) :: Class:
   match find(classes_not_flat, name)
-  | classC(field_names, methods):
+  | classC(field_names, methods, p_methods):
       match flatten_super(name, classes_not_flat, i_classes)
-      | classC(super_field_names, super_methods):
+      | classC(super_field_names, super_methods, p_methods2):
           classC(add_fields(super_field_names, field_names),
-                 add_or_replace_methods(super_methods, methods))
+                 add_or_replace_methods(super_methods, methods),
+                 add_or_replace_methods(p_methods2, p_methods))
 
 fun flatten_super(name :: Symbol,
                   classes_not_flat :: Listof(Symbol * Class),
                   i_classes :: Listof(Symbol * ClassI)) :: Class:
   match find(i_classes, name)
-  | classI(super_name, field_names, i_methods):
+  | classI(super_name, field_names, i_methods, p_methods):
      if super_name == #'Object
-     | classC([], [])
+     | classC([], [], [])
      | flatten_class(super_name, classes_not_flat, i_classes)
 
 module test:
@@ -149,7 +157,8 @@ module test:
                                 getI(thisI(), #'y))),
                    values(#'addDist,
                           plusI(sendI(thisI(), #'mdist, intI(0)),
-                                sendI(argI(), #'mdist, intI(0))))]))
+                                sendI(argI(), #'mdist, intI(0))))],
+                  []))
   def addDist_c_method:
     values(#'addDist,
            plusE(sendE(thisE(), #'mdist, intE(0)),
@@ -160,12 +169,14 @@ module test:
                   [values(#'mdist,
                           plusE(getE(thisE(), #'x),
                                 getE(thisE(), #'y))),
-                   addDist_c_method]))
+                   addDist_c_method],
+                  []))
   def posn3d_c_class:  
     values(#'Posn3D,
            classC([#'x, #'y, #'z],
                   [posn3d_mdist_c_method,
-                   addDist_c_method]))
+                   addDist_c_method],
+                  []))
 
   check: flatten_class(#'Posn3D,
                        [posn_c_class_not_flat,

@@ -19,6 +19,11 @@ type Exp
          class_name :: Symbol,
          method_name :: Symbol,
          arg_exp :: Exp)
+| castE(sym :: Symbol,
+        exp :: Exp)
+| ifE(test :: Exp,
+      arm1 :: Exp,
+      arm2 :: Exp)
 
 type Class
 | classC(field_names :: Listof(Symbol),
@@ -91,6 +96,22 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         def obj = recur(obj_exp)
         def arg_val = recur(arg_exp)
         call_method(class_name, method_name, classes, obj, arg_val)
+    | castE(sym, exp):
+        def res_exp = recur(exp)
+        match res_exp
+        | objV(class_name, fields):
+            if(class_name == sym)
+            | objV(sym, fields)
+            | error(#'interp, "invalid typecast")
+        | intV(n):
+            if sym == #'Int
+            | intV(n)
+            | error(#'interp, "not a number")
+    | ifE(test, arm1, arm2):
+        def res_test = recur(test)
+        if res_test == intV(0)
+        | recur(arm1)
+        | recur(arm2)
 
 fun call_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
@@ -110,8 +131,7 @@ fun num_mult(l :: Value, r :: Value) :: Value:
   num_op(fun (a, b): a*b, l, r)
 
 // ----------------------------------------
-// Examples
-
+// Examples 
 module test:
   def posn_class:
     values(
@@ -153,6 +173,14 @@ module test:
 // ----------------------------------------
 
 module test:
+  check: interp_posn(castE(#'Posn, newE(#'Posn3D, [intE(2), intE(7), intE(8)])))
+         ~raises "invalid typecast"
+  check: interp_posn(castE(#'Posn, newE(#'Posn, [intE(2), intE(7)])))
+         ~is objV(#'Posn, [intV(2), intV(7)])
+  check: interp_posn(castE(#'Int, intE(10)))
+         ~is intV(10)
+  check: interp_posn(castE(#'Posn, intE(10)))
+         ~raises "not a number"
   check: interp(intE(10),
                 [], objV(#'Object, []), intV(0))
          ~is intV(10)
