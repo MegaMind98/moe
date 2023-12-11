@@ -24,6 +24,9 @@ type Exp
 | ifE(test :: Exp,
       arm1 :: Exp,
       arm2 :: Exp)
+| setE(obj_exp :: Exp,
+       field_name :: Symbol,
+       field_value :: Exp)
 | nullE()
 
 type Class
@@ -34,7 +37,7 @@ type Class
 type Value
 | intV(n :: Int)
 | objV(class_name :: Symbol,
-       fields :: Listof(Value))
+       fields :: Listof(Boxof(Value)))
 | nullV()
 
 // ----------------------------------------
@@ -75,7 +78,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
     | argE(): arg_val
     | newE(class_name, field_exps):
         def c = find(classes, class_name)
-        def vals = map(recur, field_exps)
+        def vals = map(box, map(recur, field_exps))
         if length(vals) == length(classC.field_names(c))
         | objV(class_name, vals)
         | error(#'interp, "wrong field count")
@@ -84,7 +87,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         | objV(class_name, fields):
             match find(classes, class_name)
             | classC(field_names, methods, p_methods):
-                find(map2(fun (n, v): values(n, v), field_names, fields),
+                find(map2(fun (n, v): values(n, v), field_names, map(unbox, fields)),
                      field_name)
         | ~else:
             error(#'interp, "not an object")
@@ -121,6 +124,18 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         if res_test == intV(0)
         | recur(arm1)
         | recur(arm2)
+    | setE(obj_exp, field_name, field_value):
+        match recur(obj_exp)
+        | objV(class_name, fields):
+            match find(classes, class_name)
+            | classC(field_names, methods, p_methods):
+                set_box(find(map2(fun (n, v): values(n, v), field_names, fields),
+                             field_name),
+                        recur(field_value))
+                find(map2(fun (n, v): values(n, v), field_names, map(unbox, fields)),
+                     field_name)
+        | ~else:
+            error(#'interp, "not an object")        
 
 fun call_all_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
@@ -195,16 +210,18 @@ module test:
 // ----------------------------------------
 
 module test:
+  check: interp_posn(setE(newE(#'Posn, [intE(2), intE(7)]), #'x, intE(10)))
+         ~is intV(10)
   check: interp_posn(getE(nullE(), #'x))
          ~raises "not an object"
   check: interp_posn(sendE(nullE(), #'x, intE(0)))
          ~raises "not an object"
   check: interp_posn(ssendE(posn27, #'Posn, #'addDists, intE(0)))
-         ~is objV(#'Posn, [intV(1), intV(2)])
+         ~is objV(#'Posn, [box(intV(1)), box(intV(2))])
   check: interp_posn(castE(#'Posn, newE(#'Posn3D, [intE(2), intE(7), intE(8)])))
          ~raises "invalid typecast"
   check: interp_posn(castE(#'Posn, newE(#'Posn, [intE(2), intE(7)])))
-         ~is objV(#'Posn, [intV(2), intV(7)])
+         ~is objV(#'Posn, [box(intV(2)), box(intV(7))])
   check: interp_posn(castE(#'Int, intE(10)))
          ~is intV(10)
   check: interp_posn(castE(#'Posn, intE(10)))
@@ -219,7 +236,7 @@ module test:
                 [], objV(#'Object, []), intV(0))
          ~is intV(70)
   check: interp_posn(newE(#'Posn, [intE(2), intE(7)]))
-         ~is objV(#'Posn, [intV(2), intV(7)])
+         ~is objV(#'Posn, [box(intV(2)), box(intV(7))])
   
   check: interp_posn(sendE(posn27, #'mdist, intE(0)))
          ~is intV(9)

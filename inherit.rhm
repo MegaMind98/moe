@@ -29,6 +29,9 @@ type ExpI
       arm1 :: ExpI,
       arm2 :: ExpI)
 | nullI()
+| setI(obj_exp :: ExpI,
+       field_name :: Symbol,
+       field_value :: ExpI)
 
 type ClassI
 | classI(super_name :: Symbol,
@@ -63,6 +66,10 @@ fun exp_i_to_c(a :: ExpI, super_name :: Symbol) :: Exp:
         ifE(recur(test),
             recur(arm1),
             recur(arm2))
+    | setI(exp, field_name, exp2):
+        setE(recur(exp),
+             field_name,
+             recur(exp2))
 
 module test:
   check: exp_i_to_c(castI(#'Int, intI(32)), #'Object)

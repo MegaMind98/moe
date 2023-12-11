@@ -50,6 +50,7 @@ fun parse_t_method(s :: Syntax) :: (Symbol * MethodT):
 fun parse_type(s :: Syntax) :: Type:
   match s
   | 'Int': intT()
+  | 'null': nullT()
   | ~else:
       cond
       | syntax_is_symbol(s):
@@ -57,6 +58,8 @@ fun parse_type(s :: Syntax) :: Type:
       | ~else: error(#'parse_type, "invalid input: " +& s)
 
 module test:
+  check: parse_type('null')
+         ~is nullT()
   check: parse_type('Int')
          ~is intT()
   check: parse_type('Object')
@@ -165,5 +168,23 @@ module test:
                   this.z + super.mdist(arg)'
            ],
            'if 2 == 0 | 2 | 3'
+         )
+         ~is '3'
+
+  check: interp_t_prog(
+           [
+             'class Posn(x :: Int,
+                         y :: Int):
+                extends Object
+                method mdist(arg :: Int) :: Int:
+                  this.x + this.y
+                method addDist(arg :: Posn) :: Int:
+                  arg.mdist(0) + this.mdist(0)',
+             'class Posn3D(z :: Int):
+                extends Posn
+                method mdist(arg :: Int) :: Int:
+                  this.z + super.mdist(arg)'
+           ],
+           'if 2 == 0 | (new Posn3D(5, 3, 1)).x := 5 | 3'
          )
          ~is '3'

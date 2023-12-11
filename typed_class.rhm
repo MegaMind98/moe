@@ -70,8 +70,6 @@ fun is_subtype(t1, t2, t_classes):
       match t2 
       | objT(name2):
           is_subclass(name1, name2, t_classes)
-      | nullT():
-          #true
       | ~else: #false
   | nullT():
       #true
@@ -178,6 +176,18 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
             | recur(arm1)
             | type_error(exp, "invalid arm types")
         | ~else: type_error(test, "test not a number")
+    | setI(obj_exp, field_name, field_value):
+        def res_field_value = recur(field_value)
+        match recur(obj_exp):
+        | objT(class_name):
+            if is_subtype(find_field_in_tree(field_name,
+                                             class_name,
+                                             t_classes),
+                          res_field_value,
+                          t_classes)
+            | res_field_value
+            | type_error(exp, "valid mutation")
+        | ~else: type_error(obj_exp, "object")        
 
 fun typecheck_send(class_name :: Symbol,
                    method_name :: Symbol,
@@ -288,7 +298,15 @@ module test:
   def new_posn27 = newI(#'Posn, [intI(2), intI(7)])
   def new_posn531 = newI(#'Posn3D, [intI(5), intI(3), intI(1)])
 
+  check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), nullI()))
+         ~raises "invalid arm types"
+  check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), intI(5)))
+         ~is intT()
   // new_posn27.addDist22(null)
+  check: typecheck_posn(setI(new_posn27, #'x, nullI()))
+         ~raises "valid mutation"
+  check: typecheck_posn(setI(new_posn27, #'x, intI(3)))
+         ~is intT()
   check: typecheck_posn(sendI(new_posn27, #'addDist22, nullI()))
          ~is intT()
   check: typecheck_posn(ifI(intI(3), intI(0), intI(2)))

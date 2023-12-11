@@ -53,6 +53,8 @@ fun parse(s :: Syntax) :: ExpI:
           ifI(parse(test),
               parse(arm1),
               parse(arm2))
+      | '$exp . $name := $field_exp':
+          setI(parse(exp), syntax_to_symbol(name), parse(field_exp))
       | '$left + $right':
           plusI(parse(left),
                 parse(right))
