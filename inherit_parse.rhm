@@ -46,6 +46,7 @@ fun parse(s :: Syntax) :: ExpI:
       intI(syntax_to_integer(s))
   | ~else:
       match s
+      | 'null': nullI()
       | 'arg': argI()
       | 'this': thisI()
       | 'if $test == 0 | $arm1 | $arm2':
@@ -139,6 +140,7 @@ fun interp_prog(classes :: Listof(Syntax), s :: Syntax) :: Syntax:
     match v
     | intV(n): integer_to_syntax(n)
     | objV(class_name, field_vals): 'object'
+    | nullV(): 'null'
 
 module test:
   check: interp_prog(
@@ -147,6 +149,12 @@ module test:
            'new Empty()'
          )
          ~is 'object'
+  check: interp_prog(
+           ['class Empty():
+               extends Object'],
+           'null'
+         )
+         ~is 'null'
 
   check: interp_prog(
            ['class Posn(x, y):

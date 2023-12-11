@@ -18,6 +18,7 @@ type MethodT
 type Type
 | intT()
 | objT(class_name :: Symbol)
+| nullT()
 
 // ----------------------------------------
 
@@ -69,7 +70,11 @@ fun is_subtype(t1, t2, t_classes):
       match t2 
       | objT(name2):
           is_subclass(name1, name2, t_classes)
+      | nullT():
+          #true
       | ~else: #false
+  | nullT():
+      #true
   | ~else: t1 == t2
 
 module test:
@@ -108,6 +113,7 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
           | ~else: type_error(r, "Int")
       | ~else: type_error(l, "Int")
     match exp
+    | nullI(): nullT()
     | intI(n): intT()
     | plusI(l, r): typecheck_nums(l, r)
     | multI(l, r): typecheck_nums(l, r)
@@ -160,6 +166,8 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
             if is_subclass(class_name, symbol_name, t_classes)
             | objT(symbol_name)
             | type_error(class_name, "invalid cast")
+        | ~else:
+            type_error(exp, "invalid cast")
     | ifI(test, arm1, arm2):
         def test_type = recur(test)
         match test_type
@@ -243,13 +251,18 @@ module test:
     values(#'Posn,
            classT(#'Object,
                   [values(#'x, intT()), values(#'y, intT())],
-                  [values(#'mdist,
-                          methodT(intT(), intT(),
-                                  plusI(getI(thisI(), #'x), getI(thisI(), #'y)))),
-                   values(#'addDist,
-                          methodT(objT(#'Posn), intT(),
-                                  plusI(sendI(thisI(), #'mdist, intI(0)),
-                                        sendI(argI(), #'mdist, intI(0)))))],
+                  [
+                    values(#'mdist,
+                           methodT(intT(), intT(),
+                                   plusI(getI(thisI(), #'x), getI(thisI(), #'y)))),
+                    values(#'addDist,
+                           methodT(objT(#'Posn), intT(),
+                                   plusI(sendI(thisI(), #'mdist, intI(0)),
+                                         sendI(argI(), #'mdist, intI(0))))),
+                    values(#'addDist22,
+                           methodT(objT(#'Posn), intT(),
+                                   plusI(intI(0), intI(2))))
+                  ],
                   []))
 
   def posn3D_t_class:
@@ -275,6 +288,9 @@ module test:
   def new_posn27 = newI(#'Posn, [intI(2), intI(7)])
   def new_posn531 = newI(#'Posn3D, [intI(5), intI(3), intI(1)])
 
+  // new_posn27.addDist22(null)
+  check: typecheck_posn(sendI(new_posn27, #'addDist22, nullI()))
+         ~is intT()
   check: typecheck_posn(ifI(intI(3), intI(0), intI(2)))
          ~is intT()
   check: typecheck_posn(ifI(newI(#'Posn, [intI(2), intI(7)]), intI(0), intI(2)))

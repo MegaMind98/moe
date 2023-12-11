@@ -28,6 +28,7 @@ type ExpI
 | ifI(test :: ExpI,
       arm1 :: ExpI,
       arm2 :: ExpI)
+| nullI()
 
 type ClassI
 | classI(super_name :: Symbol,
@@ -42,6 +43,7 @@ fun exp_i_to_c(a :: ExpI, super_name :: Symbol) :: Exp:
     fun recur(exp):
       exp_i_to_c(exp, super_name)
     match a
+    | nullI(): nullE()
     | intI(n): intE(n)
     | plusI(l, r): plusE(recur(l), recur(r))
     | multI(l, r): multE(recur(l), recur(r))

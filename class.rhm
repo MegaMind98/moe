@@ -24,6 +24,7 @@ type Exp
 | ifE(test :: Exp,
       arm1 :: Exp,
       arm2 :: Exp)
+| nullE()
 
 type Class
 | classC(field_names :: Listof(Symbol),
@@ -34,6 +35,7 @@ type Value
 | intV(n :: Int)
 | objV(class_name :: Symbol,
        fields :: Listof(Value))
+| nullV()
 
 // ----------------------------------------
 
@@ -65,6 +67,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
     fun recur(exp):
       interp(exp, classes, this_val, arg_val)
     match a
+    | nullE(): nullV()
     | intE(n): intV(n)
     | plusE(l, r): num_plus(recur(l), recur(r))
     | multE(l, r): num_mult(recur(l), recur(r))
@@ -112,6 +115,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
             if sym == #'Int
             | intV(n)
             | error(#'interp, "not a number")
+        | ~else: error(#'interp, "invalid cast")
     | ifE(test, arm1, arm2):
         def res_test = recur(test)
         if res_test == intV(0)
@@ -191,6 +195,10 @@ module test:
 // ----------------------------------------
 
 module test:
+  check: interp_posn(getE(nullE(), #'x))
+         ~raises "not an object"
+  check: interp_posn(sendE(nullE(), #'x, intE(0)))
+         ~raises "not an object"
   check: interp_posn(ssendE(posn27, #'Posn, #'addDists, intE(0)))
          ~is objV(#'Posn, [intV(1), intV(2)])
   check: interp_posn(castE(#'Posn, newE(#'Posn3D, [intE(2), intE(7), intE(8)])))

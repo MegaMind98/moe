@@ -121,8 +121,11 @@ fun interp_t_prog(classes :: Listof(Syntax), a :: Syntax) :: Syntax:
     match v
     | intV(n): integer_to_syntax(n)
     | objV(class_name, field_vals): 'object'
+    | nullV(): 'null'
 
 module test:
+  check: interp_t_prog([], 'null')
+         ~is 'null'
   check: interp_t_prog([], '(Posn)4')
          ~raises "not a number"
   check: interp_t_prog(['class Empty():
