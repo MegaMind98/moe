@@ -256,7 +256,7 @@ fun typecheck_method(method :: MethodT,
       | #void
       | type_error(body_exp, to_string(result_type))
 
-#//
+
 fun check_override(method_name :: Symbol,
                    method :: MethodT,
                    this_class :: ClassT,
@@ -271,16 +271,39 @@ fun check_override(method_name :: Symbol,
       ~catch:
         // no such method in superclass:
         method
-  println(methodT.arg_type(method))
-  println(methodT.arg_type(super_method))
   def method_type = methodT.arg_type(method)
   def method_rtype = methodT.result_type(method)
   def super_method_type = methodT.arg_type(super_method)
   def super_method_rtype = methodT.result_type(super_method)
-  
-  if is_subtype(method_type, super_method_type, t_classes) && is_subtype(super_method_rtype, method_rtype, t_classes)
+
+  def final_method_type = get_super_type(method_type, super_method_type, t_classes)
+  def final_method_rtype = get_super_type(method_rtype, super_method_rtype, t_classes)
+
+  if is_subtype(method_type, final_method_type, t_classes) && is_subtype(method_rtype, final_method_rtype, t_classes)
   | #void
   | error(#'typecheck, "bad override of " +& method_name)
+
+fun get_super_type(t1, t2, t_classes):
+  match t1
+  | objT(name):
+      match t2
+      | objT(name2):
+          if is_subclass(name, name2, t_classes)
+          | objT(name)
+          | type_error(#'get_super_type, "invalid type")
+      | nullT(): objT(name)
+      | ~else: type_error(#'get_super_type, "invalid type")
+  | nullT():
+      match t2
+      | objT(name):
+          objT(name)
+      | nullT(): nullT()
+      | ~else: type_error(#'get_super_type, "invalid type")
+  | intT():
+      match t2
+      | intT():
+          intT()
+      | ~else: type_error(#'get_super_type, "invalid type")
 
 fun typecheck_class(class_name :: Symbol,
                     t_class :: ClassT,
@@ -289,8 +312,8 @@ fun typecheck_class(class_name :: Symbol,
   | classT(super_name, constructor, fields, methods, p_methods):
       def hello = typecheck_constructor(constructor, t_classes, class_name)
       map(fun (m):
-            typecheck_method(snd(m), objT(class_name), t_classes),
-            //check_override(fst(m), snd(m), t_class, t_classes),
+            typecheck_method(snd(m), objT(class_name), t_classes)
+            check_override(fst(m), snd(m), t_class, t_classes),
           append(methods, p_methods))
 
 fun typecheck_constructor(constructor, t_classes, class_name):
@@ -326,7 +349,7 @@ module test:
                                    plusI(sendI(thisI(), #'mdist, intI(0)),
                                          sendI(argI(), #'mdist, intI(0))))),
                     values(#'addDist22,
-                           methodT(objT(#'Posn), intT(),
+                           methodT(objT(#'Object), intT(),
                                    plusI(intI(0), intI(2))))
                   ],
                   []))
@@ -439,11 +462,22 @@ module test:
                            classT(#'Posn,
                                   [],
                                   [],
+                                  [values(#'addDist22,
+                                          methodT(objT(#'Posn), intT(),
+                                                  intI(10)))],
+                                  []))])
+         ~is intT()
+  check: typecheck(intI(10),
+                   [posn_t_class,
+                    values(#'Other,
+                           classT(#'Posn,
+                                  [],
+                                  [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), intT(),
                                                   intI(10)))],
                                   []))])
-         ~is intT()
+         ~raises "invalid type"
   check: typecheck(intI(10),
                    [posn_t_class,
                     values(#'Other,
@@ -454,18 +488,7 @@ module test:
                                           methodT(objT(#'Object), objT(#'Object),
                                                   newI(#'Object, [])))],
                                   []))])
-         ~is intT()
-  check: typecheck(intI(10),
-                   [posn_t_class,
-                    values(#'Other,
-                           classT(#'Posn,
-                                  [],
-                                  [],
-                                  [values(#'mdist,
-                                          methodT(objT(#'Object), objT(#'Object),
-                                                  intI(10)))],
-                                  []))])
-         ~raises "no type"
+         ~raises "invalid type"
   // End of overriding examples (covariance and contravariance)
   check: typecheck_method(methodT(intT(), objT(#'Object), intI(0)), objT(#'Object), [])
          ~raises "no type"
