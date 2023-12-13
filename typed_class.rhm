@@ -79,6 +79,27 @@ fun is_subtype(t1, t2, t_classes):
       | ~else: #true
   | ~else: t1 == t2
 
+fun get_supertype(t1, t2, t_classes):
+  match t1
+  | objT(name1):
+      match t2
+      | objT(name2):
+          if is_subclass(name1, name2, t_classes)
+          | objT(name1)
+          | nullT()
+      | nullT():
+          objT(name1)
+      | ~else: error(#'is_supertype, "some error")
+  | nullT():
+      match t2
+      | objT(name):
+          objT(name)
+      | ~else: error(#'is_supertype, "some error")
+  | ~else:
+      if t1 == t2
+      | t1
+      | error(#'is_supertype, "some error")
+
 module test:
   def a_t_class = values(#'A, classT(#'Object, [], [], [], []))
   def b_t_class = values(#'B, classT(#'A, [], [], [], []))
@@ -176,10 +197,15 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
         def test_type = recur(test)
         match test_type
         | intT():
+            def supertype = get_supertype(recur(arm1),
+                                          recur(arm2),
+                                          t_classes)
             if is_subtype(recur(arm1),
-                          recur(arm2),
-                          t_classes)
-            | recur(arm1)
+                          supertype,
+                          t_classes) && is_subtype(recur(arm1),
+                                                   supertype,
+                                                   t_classes)
+            | supertype
             | type_error(exp, "invalid arm types")
         | ~else: type_error(test, "test not a number")
     | setI(obj_exp, field_name, field_value):
@@ -333,8 +359,10 @@ module test:
   // bad posn with null argument
   check: typecheck_posn(setI(newI(#'Posn, [nullI(), intI(7)]), #'x, intI(3)))
          ~raises "type mismatch"
+  check: typecheck_posn(ifI(intI(2), newI(#'Posn, [intI(2), intI(7)]), nullI()))
+         ~is objT(#'Posn)
   check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), nullI()))
-         ~raises "invalid arm types"
+         ~raises "some error"
   check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), intI(5)))
          ~is intT()
   // new_posn27.addDist22(null)
@@ -349,7 +377,7 @@ module test:
   check: typecheck_posn(ifI(newI(#'Posn, [intI(2), intI(7)]), intI(0), intI(2)))
          ~raises "test not a number"
   check: typecheck_posn(ifI(intI(3), intI(0), newI(#'Posn, [intI(2), intI(7)])))
-         ~raises "invalid arm types"
+         ~raises "some error"
   check: typecheck_posn(castI(#'Int, newI(#'Posn, [intI(2), intI(7)])))
          ~raises "invalid cast"
   check: typecheck_posn(castI(#'Posn, intI(7)))

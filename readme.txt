@@ -7,9 +7,10 @@ When a subclass overrides a method in a superclass, the compiler must check that
 The checkoverride function was currently checking if the return types and method arguments match exactly. So, I got rid of them and allowed subclass method to override the return type and also allowed subclass method to override the method argument types.
 
 3 = 2 (If statement)
-
+So, for this.. checking if the test part is integer was easy. For the then and else part.. I created a helper function that took t1 and t2 and decided that would give me supertype. And I checked whether the supertype I got is subtype of the then and else branches. 
 
 4 = 2 (private)
+
 
 8 = 2 (null)
 
