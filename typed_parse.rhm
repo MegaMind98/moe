@@ -256,3 +256,5 @@ module test:
            'if 2 == 0 | (new Posn()).mdist(4) | (new Posn()).mdist(3)'
          )
          ~is '14'
+
+

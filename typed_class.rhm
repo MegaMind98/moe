@@ -356,6 +356,12 @@ module test:
   def new_posn27 = newI(#'Posn, [intI(2), intI(7)])
   def new_posn531 = newI(#'Posn3D, [intI(5), intI(3), intI(1)])
 
+  check: typecheck_posn(setI(nullI(), #'x, intI(3)))
+         ~raises "not object"
+  check: typecheck(getI(nullI(), #'x),
+                   [])
+         ~raises "no type"
+
   // bad posn with null argument
   check: typecheck_posn(setI(newI(#'Posn, [nullI(), intI(7)]), #'x, intI(3)))
          ~raises "type mismatch"
@@ -512,6 +518,8 @@ module test:
   fun interp_t_posn(a):
     interp_t(a, [posn_t_class, posn3D_t_class])
   
+  check: interp_t_posn(sendI(new_posn27, #'mdist, intI(0)))
+         ~is intV(9)
   check: interp_t_posn(sendI(new_posn27, #'mdist, intI(0)))
          ~is intV(9)
   check: interp_t_posn(sendI(new_posn531, #'mdist, intI(0)))
