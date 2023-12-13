@@ -195,7 +195,14 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
             | type_error(exp, "valid mutation")
         | ~else: type_error(obj_exp, "object")
     | beginI(exp):
-        ....
+        typecheck_begin(exp, nullT(), t_classes, this_type, arg_type)
+
+fun typecheck_begin(exp, return, t_classes, this_type, arg_type):
+  match exp
+  | []: return
+  | cons(f_exp, r_exp):
+      typecheck_begin(r_exp, typecheck_exp(f_exp, t_classes, this_type, arg_type),
+                      t_classes, this_type, arg_type)
 
 fun typecheck_send(class_name :: Symbol,
                    method_name :: Symbol,
@@ -240,8 +247,12 @@ fun check_override(method_name :: Symbol,
         method
   println(methodT.arg_type(method))
   println(methodT.arg_type(super_method))
-  if (methodT.arg_type(method) == methodT.arg_type(super_method)
-        && methodT.result_type(method)  == methodT.result_type(super_method))
+  def method_type = methodT.arg_type(method)
+  def method_rtype = methodT.result_type(method)
+  def super_method_type = methodT.arg_type(super_method)
+  def super_method_rtype = methodT.result_type(super_method)
+  
+  if is_subtype(method_type, super_method_type, t_classes) && is_subtype(super_method_rtype, method_rtype, t_classes)
   | #void
   | error(#'typecheck, "bad override of " +& method_name)
 
@@ -253,6 +264,7 @@ fun typecheck_class(class_name :: Symbol,
       def hello = typecheck_constructor(constructor, t_classes, class_name)
       map(fun (m):
             typecheck_method(snd(m), objT(class_name), t_classes),
+            //check_override(fst(m), snd(m), t_class, t_classes),
           append(methods, p_methods))
 
 fun typecheck_constructor(constructor, t_classes, class_name):
