@@ -209,15 +209,15 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
             | type_error(exp, "invalid arm types")
         | ~else: type_error(test, "test not a number")
     | setI(obj_exp, field_name, field_value):
-        def res_field_value = recur(field_value)
+        def res_field_value_type = recur(field_value)
         match recur(obj_exp):
         | objT(class_name):
             if is_subtype(find_field_in_tree(field_name,
                                              class_name,
                                              t_classes),
-                          res_field_value,
+                          res_field_value_type,
                           t_classes)
-            | res_field_value
+            | res_field_value_type
             | type_error(exp, "valid mutation")
         | ~else: type_error(obj_exp, "object")
     | beginI(exp):

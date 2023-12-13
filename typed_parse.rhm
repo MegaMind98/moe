@@ -232,3 +232,27 @@ module test:
            'if 2 == 0 | (new Posn()).x | (new Posn()).y'
          )
          ~is '11'
+
+  check: interp_t_prog(
+           [
+             'class Posn(x :: Int,
+                         y :: Int):
+                extends Object
+                constructor
+                begin:
+                  this.x := 10 :: Int
+                  this.y := 11 :: Int
+                private method hello(arg :: Int) :: Int:
+                  arg
+                method mdist(arg :: Int) :: Int:
+                  this.hello(arg) + this.y
+                method addDist(arg :: Posn) :: Int:
+                  arg.mdist(0) + this.mdist(0)',
+             'class Posn3D(z :: Int):
+                extends Posn
+                method mdist(arg :: Int) :: Int:
+                  this.z + super.mdist(arg)'
+           ],
+           'if 2 == 0 | (new Posn()).mdist(4) | (new Posn()).mdist(3)'
+         )
+         ~is '14'

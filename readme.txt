@@ -9,15 +9,16 @@ The checkoverride function was currently checking if the return types and method
 3 = 2 (If statement)
 So, for this.. checking if the test part is integer was easy. For the then and else part.. I created a helper function that took t1 and t2 and decided that would give me supertype. And I checked whether the supertype I got is subtype of the then and else branches. 
 
-4 = 2 (private)
-
+4 = 2 (private).. my private methods can't be inherited and/or overridden (did nothing for this.. :D)
+For this.. I changed the class definition now to include the word private infront of method. To make sure, the function is only exectued from this expression, I passed obj_exp along the call_method function which checked before function invocation.. if the obj_exp has this.. if it has.. then the call_method looked for all the methods (private and public) otherwise.. it only searches for the public ones.
 
 8 = 2 (null)
+
 
 7 = 2 (Functional update test.. don't have)
 
 9 = 2 (Constructors)
-For this, I again modified classC definition. My constructor doesn't take any arguments but it can process a list of expressions which I implemented by implementing begin. 
+For this, I again modified classC definition. My constructor doesn't take any arguments (when I realized.. I should do this.. it was 1PM already) but it can process a list of expressions which I implemented by implementing begin. 
 -----
 5 = 13
 -----

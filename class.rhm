@@ -118,7 +118,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         def arg_val = recur(arg_exp)
         match obj
         | objV(class_name, fields):
-            call_method(class_name, method_name, classes, obj, arg_val)
+            call_method(obj_exp, class_name, method_name, classes, obj, arg_val)
         | ~else:
             error(#'interp, "not an object")
     | ssendE(obj_exp, class_name, method_name, arg_exp):
@@ -192,11 +192,14 @@ fun call_all_method(class_name, method_name, classes, obj, arg_val):
           let body_exp = find(methods, method_name):
             interp(body_exp, classes, obj, arg_val)        
 
-fun call_method(class_name, method_name, classes, obj, arg_val):
+fun call_method(obj_exp, class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(super_name, constructor, field_names, methods, p_methods):              
-      let body_exp = find(methods, method_name):
-        interp(body_exp, classes, obj, arg_val)
+  | classC(super_name, constructor, field_names, methods, p_methods):
+      if obj_exp == thisE()
+      | let body_exp = find(append(methods, p_methods), method_name):
+          interp(body_exp, classes, obj, arg_val)
+      | let body_exp = find(methods, method_name):
+          interp(body_exp, classes, obj, arg_val)
                       
 fun num_op(op :: (Int, Int) -> Int, l :: Value, r :: Value) :: Value:
   cond
