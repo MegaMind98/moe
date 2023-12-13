@@ -28,9 +28,11 @@ type Exp
        field_name :: Symbol,
        field_value :: Exp)
 | nullE()
+| beginE(exps :: Listof(Exp))
 
 type Class
-| classC(field_names :: Listof(Symbol),
+| classC(constructor :: Exp,
+         field_names :: Listof(Symbol),
          methods :: Listof(Symbol * Exp),
          p_methods :: Listof(Symbol * Exp))
 
@@ -78,15 +80,34 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
     | argE(): arg_val
     | newE(class_name, field_exps):
         def c = find(classes, class_name)
-        def vals = map(box, map(recur, field_exps))
-        if length(vals) == length(classC.field_names(c))
-        | objV(class_name, vals)
-        | error(#'interp, "wrong field count")
+        match c
+        | classC(constructor, field_names, methods, p_methods):
+            cond
+            | length(beginE.exps(constructor)) == 0 && length(field_exps) == 0:
+                def vals = map(fun (x): box(nullV()), classC.field_names(c))
+                objV(class_name, vals)
+            | length(beginE.exps(constructor)) != 0:
+                def vals = map(fun (x): box(nullV()), classC.field_names(c))
+                def our_obj = objV(class_name, vals)
+                def interp_constructor = begin_interp(beginE.exps(constructor),
+                                                      classes, our_obj, arg_val)
+                if length(field_exps) != 0
+                | if length(field_exps) == length(classC.field_names(c))
+                  | def temp_val = map(recur, field_exps)
+                    def operate = map2(fun (n, v): set_box(n, v), vals, temp_val)
+                    objV(class_name, vals)
+                  | error(#'interp, "wrong field count")
+                | objV(class_name, vals)
+            | ~else:
+                def vals = map(box, map(recur, field_exps))
+                if length(vals) == length(classC.field_names(c))
+                | objV(class_name, vals)
+                | error(#'interp, "wrong field count")
     | getE(obj_exp, field_name):
         match recur(obj_exp)
-        | objV(class_name, fields):
+        | objV(class_name, fields): // Field has actual values like 7
             match find(classes, class_name)
-            | classC(field_names, methods, p_methods):
+            | classC(constructor, field_names, methods, p_methods): // f_n has names x
                 find(map2(fun (n, v): values(n, v), field_names, map(unbox, fields)),
                      field_name)
         | ~else:
@@ -128,18 +149,28 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         match recur(obj_exp)
         | objV(class_name, fields):
             match find(classes, class_name)
-            | classC(field_names, methods, p_methods):
+            | classC(constructor, field_names, methods, p_methods):
                 set_box(find(map2(fun (n, v): values(n, v), field_names, fields),
                              field_name),
                         recur(field_value))
                 find(map2(fun (n, v): values(n, v), field_names, map(unbox, fields)),
                      field_name)
         | ~else:
-            error(#'interp, "not an object")        
+            error(#'interp, "not an object")
+    | beginE(exps):
+        begin_interp(exps, classes, this_val, arg_val)
 
+fun begin_interp(exps, classes, this_val, arg_val):
+  cond
+  | is_empty(rest(exps)):
+      interp(first(exps), classes, this_val, arg_val)
+  | ~else:
+      def result = interp(first(exps), classes, this_val, arg_val)
+      begin_interp(rest(exps), classes, this_val, arg_val)
+      
 fun call_all_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(field_names, methods, p_methods):
+  | classC(constructor, field_names, methods, p_methods):
       try:
         let body_exp = find(p_methods, method_name):
           interp(body_exp, classes, obj, arg_val)
@@ -149,7 +180,7 @@ fun call_all_method(class_name, method_name, classes, obj, arg_val):
 
 fun call_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(field_names, methods, p_methods):              
+  | classC(constructor, field_names, methods, p_methods):              
       let body_exp = find(methods, method_name):
         interp(body_exp, classes, obj, arg_val)
                       
@@ -170,7 +201,8 @@ module test:
   def posn_class:
     values(
       #'Posn,
-      classC([#'x,#'y],
+      classC(beginE([]),
+             [#'x,#'y],
              [
                values(#'mdist,
                       plusE(getE(thisE(), #'x), getE(thisE(), #'y))),
@@ -192,7 +224,8 @@ module test:
   def posn3D_class:
     values(
       #'Posn3D,
-      classC([#'x,#'y, #'z],
+      classC(beginE([]),
+             [#'x,#'y, #'z],
              [
                values(#'mdist,
                       plusE(getE(thisE(), #'z),
@@ -207,9 +240,41 @@ module test:
   fun interp_posn(a):
     interp(a, [posn_class, posn3D_class], intV(-1), intV(-1))
 
+  def hello_class:
+    values(
+      #'Hello,
+      classC(beginE([setE(thisE(), #'x, intE(5))]),
+             [#'x,#'y],
+             [
+               values(#'mdist,
+                      plusE(getE(thisE(), #'x), getE(thisE(), #'y))),
+               values(#'addDist,
+                      plusE(sendE(thisE(), #'mdist, intE(0)),
+                            sendE(argE(), #'mdist, intE(0)))),
+               values(#'addX,
+                      plusE(getE(thisE(), #'x), argE())),
+               values(#'multY,
+                      multE(argE(), getE(thisE(), #'y))),
+               values(#'factory12,
+                      newE(#'Posn, [intE(1), intE(2)]))
+             ],
+             [
+               values(#'addDists,
+                      newE(#'Posn, [intE(1), intE(2)]))
+             ]))
+
+  fun interp_hello(a):
+    interp(a, [hello_class], intV(-1), intV(-1))
+
 // ----------------------------------------
 
 module test:
+  check: interp_hello(newE(#'Hello, [intE(2), intE(9)]))
+         ~is objV(#'Hello, [box(intV(2)), box(intV(9))])  
+  check: interp_hello(newE(#'Hello, []))
+         ~is objV(#'Hello, [box(intV(5)), box(nullV())])
+  check: interp_posn(newE(#'Posn, [intE(2), intE(7)]))
+         ~is objV(#'Posn, [box(intV(2)), box(intV(7))])
   check: interp_posn(setE(newE(#'Posn, [intE(2), intE(7)]), #'x, intE(10)))
          ~is intV(10)
   check: interp_posn(getE(nullE(), #'x))
@@ -237,7 +302,7 @@ module test:
          ~is intV(70)
   check: interp_posn(newE(#'Posn, [intE(2), intE(7)]))
          ~is objV(#'Posn, [box(intV(2)), box(intV(7))])
-  
+
   check: interp_posn(sendE(posn27, #'mdist, intE(0)))
          ~is intV(9)
   

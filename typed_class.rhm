@@ -6,6 +6,7 @@ import:
 
 type ClassT
 | classT(super_name :: Symbol,
+         constructor :: Listof(ExpI * Type),
          fields :: Listof(Symbol * Type),
          methods :: Listof(Symbol * MethodT),
          p_methods :: Listof(Symbol * MethodT))
@@ -29,7 +30,7 @@ fun get_all_field_types(class_name, t_classes):
   if class_name == #'Object
   | []
   | match find(t_classes, class_name)
-    | classT(super_name, fields, methods, p_methods):
+    | classT(super_name, constructor, fields, methods, p_methods):
         append(get_all_field_types(super_name, t_classes),
                map(snd, fields))
 
@@ -61,7 +62,7 @@ fun is_subclass(name1, name2, t_classes):
   | name1 == #'Object: #false
   | ~else:
       match find(t_classes, name1)
-      | classT(super_name, fields, methods, p_methods):
+      | classT(super_name, constructor, fields, methods, p_methods):
           is_subclass(super_name, name2, t_classes)
 
 fun is_subtype(t1, t2, t_classes):
@@ -72,12 +73,15 @@ fun is_subtype(t1, t2, t_classes):
           is_subclass(name1, name2, t_classes)
       | ~else: #false
   | nullT():
-      #true
+      match t2
+      | intT():
+          #false
+      | ~else: #true
   | ~else: t1 == t2
 
 module test:
-  def a_t_class = values(#'A, classT(#'Object, [], [], []))
-  def b_t_class = values(#'B, classT(#'A, [], [], []))
+  def a_t_class = values(#'A, classT(#'Object, [], [], [], []))
+  def b_t_class = values(#'B, classT(#'A, [], [], [], []))
 
   check: is_subclass(#'Object, #'Object, [])
          ~is #true
@@ -86,6 +90,8 @@ module test:
   check: is_subclass(#'B, #'A, [a_t_class, b_t_class])
          ~is #true
 
+  check: is_subtype(nullT(), intT(), [])
+         ~is #false
   check: is_subtype(intT(), intT(), [])
          ~is #true
   check: is_subtype(intT(), objT(#'Object), [])
@@ -187,7 +193,9 @@ def typecheck_exp :: (ExpI, Listof(Symbol * ClassT), Type, Type) -> Type:
                           t_classes)
             | res_field_value
             | type_error(exp, "valid mutation")
-        | ~else: type_error(obj_exp, "object")        
+        | ~else: type_error(obj_exp, "object")
+    | beginI(exp):
+        ....
 
 fun typecheck_send(class_name :: Symbol,
                    method_name :: Symbol,
@@ -241,10 +249,18 @@ fun typecheck_class(class_name :: Symbol,
                     t_class :: ClassT,
                     t_classes :: Listof(Symbol * ClassT)):
   match t_class
-  | classT(super_name, fields, methods, p_methods):
+  | classT(super_name, constructor, fields, methods, p_methods):
+      def hello = typecheck_constructor(constructor, t_classes, class_name)
       map(fun (m):
             typecheck_method(snd(m), objT(class_name), t_classes),
           append(methods, p_methods))
+
+fun typecheck_constructor(constructor, t_classes, class_name):
+  //println(constructor)
+  map((fun (n):
+        def values(a, b) = n
+        typecheck_exp(a, t_classes, objT(class_name), intT())),
+      constructor)
 
 fun typecheck(a :: ExpI,
               t_classes :: Listof(Symbol * ClassT)) :: Type:
@@ -260,6 +276,8 @@ module test:
   def posn_t_class:
     values(#'Posn,
            classT(#'Object,
+                  [values(plusI(intI(3), intI(3)), intT()),
+                   values(plusI(intI(3), intI(3)), intT())],
                   [values(#'x, intT()), values(#'y, intT())],
                   [
                     values(#'mdist,
@@ -278,6 +296,7 @@ module test:
   def posn3D_t_class:
     values(#'Posn3D,
            classT(#'Posn,
+                  [],
                   [values(#'z, intT())],
                   [values(#'mdist,
                           methodT(intT(), intT(),
@@ -288,6 +307,7 @@ module test:
   def square_t_class :
     values(#'Square,
            classT(#'Object,
+                  [],
                   [values(#'topleft, objT(#'Posn))],
                   [],
                   []))
@@ -298,6 +318,9 @@ module test:
   def new_posn27 = newI(#'Posn, [intI(2), intI(7)])
   def new_posn531 = newI(#'Posn3D, [intI(5), intI(3), intI(1)])
 
+  // bad posn with null argument
+  check: typecheck_posn(setI(newI(#'Posn, [nullI(), intI(7)]), #'x, intI(3)))
+         ~raises "type mismatch"
   check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), nullI()))
          ~raises "invalid arm types"
   check: typecheck_posn(ifI(intI(2), setI(new_posn27, #'x, intI(5)), intI(5)))
@@ -369,6 +392,7 @@ module test:
                     values(#'Other,
                            classT(#'Posn,
                                   [],
+                                  [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), intT(),
                                                   intI(10)))],
@@ -379,6 +403,7 @@ module test:
                     values(#'Other,
                            classT(#'Posn,
                                   [],
+                                  [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), objT(#'Object),
                                                   newI(#'Object, [])))],
@@ -388,6 +413,7 @@ module test:
                    [posn_t_class,
                     values(#'Other,
                            classT(#'Posn,
+                                  [],
                                   [],
                                   [values(#'mdist,
                                           methodT(objT(#'Object), objT(#'Object),
@@ -402,6 +428,7 @@ module test:
                     values(#'Cube,
                            classT(#'Square,
                                   [],
+                                  [],
                                   [values(#'m,
                                           methodT(intT(), intT(),
                                                   // No such method in superclass:
@@ -414,8 +441,11 @@ module test:
 def strip_types :: ClassT -> ClassI:
   fun (t_class):
     match t_class
-    | classT(super_name, fields, methods, p_methods):
+    | classT(super_name, constructor, fields, methods, p_methods):
        classI(super_name,
+              beginI(map((fun (n):
+                           fst(n)),
+                         constructor)),
               map(fst, fields),
               map(fun (m):
                     values(fst(m),
