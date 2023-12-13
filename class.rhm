@@ -31,7 +31,8 @@ type Exp
 | beginE(exps :: Listof(Exp))
 
 type Class
-| classC(constructor :: Exp,
+| classC(super_name :: Listof(Symbol),
+         constructor :: Exp,
          field_names :: Listof(Symbol),
          methods :: Listof(Symbol * Exp),
          p_methods :: Listof(Symbol * Exp))
@@ -81,7 +82,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
     | newE(class_name, field_exps):
         def c = find(classes, class_name)
         match c
-        | classC(constructor, field_names, methods, p_methods):
+        | classC(super_name, constructor, field_names, methods, p_methods):
             cond
             | length(beginE.exps(constructor)) == 0 && length(field_exps) == 0:
                 def vals = map(fun (x): box(nullV()), classC.field_names(c))
@@ -105,9 +106,9 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
                 | error(#'interp, "wrong field count")
     | getE(obj_exp, field_name):
         match recur(obj_exp)
-        | objV(class_name, fields): // Field has actual values like 7
+        | objV(class_name, fields):
             match find(classes, class_name)
-            | classC(constructor, field_names, methods, p_methods): // f_n has names x
+            | classC(super_name, constructor, field_names, methods, p_methods):
                 find(map2(fun (n, v): values(n, v), field_names, map(unbox, fields)),
                      field_name)
         | ~else:
@@ -132,9 +133,14 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         def res_exp = recur(exp)
         match res_exp
         | objV(class_name, fields):
-            if(class_name == sym)
-            | objV(sym, fields)
-            | error(#'interp, "invalid typecast")
+            def tmp_class = find(classes, class_name)
+            match tmp_class
+            | classC(super_name, constructor, field_names, methods, p_methods):
+                // println(super_name)
+                // println(sym)
+                if sym == class_name || is_instance(super_name, sym)
+                | objV(sym, fields)
+                | error(#'interp, "invalid typecast")
         | intV(n):
             if sym == #'Int
             | intV(n)
@@ -149,7 +155,7 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
         match recur(obj_exp)
         | objV(class_name, fields):
             match find(classes, class_name)
-            | classC(constructor, field_names, methods, p_methods):
+            | classC(super_name, constructor, field_names, methods, p_methods):
                 set_box(find(map2(fun (n, v): values(n, v), field_names, fields),
                              field_name),
                         recur(field_value))
@@ -159,6 +165,14 @@ def interp :: (Exp, Listof(Symbol * Class), Value, Value) -> Value:
             error(#'interp, "not an object")
     | beginE(exps):
         begin_interp(exps, classes, this_val, arg_val)
+
+fun is_instance(super_name, sym):
+  match super_name
+  | []: #false
+  | cons(f_sn, r_sn):
+      if f_sn == sym
+      | #true
+      | is_instance(r_sn, sym)
 
 fun begin_interp(exps, classes, this_val, arg_val):
   cond
@@ -170,7 +184,7 @@ fun begin_interp(exps, classes, this_val, arg_val):
       
 fun call_all_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(constructor, field_names, methods, p_methods):
+  | classC(super_name, constructor, field_names, methods, p_methods):
       try:
         let body_exp = find(p_methods, method_name):
           interp(body_exp, classes, obj, arg_val)
@@ -180,7 +194,7 @@ fun call_all_method(class_name, method_name, classes, obj, arg_val):
 
 fun call_method(class_name, method_name, classes, obj, arg_val):
   match find(classes, class_name)
-  | classC(constructor, field_names, methods, p_methods):              
+  | classC(super_name, constructor, field_names, methods, p_methods):              
       let body_exp = find(methods, method_name):
         interp(body_exp, classes, obj, arg_val)
                       
@@ -201,7 +215,8 @@ module test:
   def posn_class:
     values(
       #'Posn,
-      classC(beginE([]),
+      classC([#'Object],
+             beginE([]),
              [#'x,#'y],
              [
                values(#'mdist,
@@ -224,7 +239,8 @@ module test:
   def posn3D_class:
     values(
       #'Posn3D,
-      classC(beginE([]),
+      classC([#'Posn, #'Object],
+             beginE([]),
              [#'x,#'y, #'z],
              [
                values(#'mdist,
@@ -243,7 +259,8 @@ module test:
   def hello_class:
     values(
       #'Hello,
-      classC(beginE([setE(thisE(), #'x, intE(5))]),
+      classC([],
+             beginE([setE(thisE(), #'x, intE(5))]),
              [#'x,#'y],
              [
                values(#'mdist,
@@ -284,6 +301,8 @@ module test:
   check: interp_posn(ssendE(posn27, #'Posn, #'addDists, intE(0)))
          ~is objV(#'Posn, [box(intV(1)), box(intV(2))])
   check: interp_posn(castE(#'Posn, newE(#'Posn3D, [intE(2), intE(7), intE(8)])))
+         ~is objV(#'Posn, [box(intV(2)), box(intV(7)), box(intV(8))])
+  check: interp_posn(castE(#'Posn3D, newE(#'Posn, [intE(2), intE(7)])))
          ~raises "invalid typecast"
   check: interp_posn(castE(#'Posn, newE(#'Posn, [intE(2), intE(7)])))
          ~is objV(#'Posn, [box(intV(2)), box(intV(7))])
